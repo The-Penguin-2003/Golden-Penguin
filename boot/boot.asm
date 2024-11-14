@@ -1,10 +1,19 @@
 ;;; Golden Penguin Bootloader ;;;
 
-[ORG 0x7C00]	; Bootloader code starts at memory address 0x7C00
+[ORG 0]		; Start the code at 0
 [BITS 16]	; Using 16-bit code
 
 ;; Bootloader Entry Point
 _start:
+	cli		; Disable interrupts
+	mov ax, 0x7C0	; Set AX to address of boot code
+	mov ds, ax	; Data segment
+	mov es, ax	; Extra segment
+
+	xor ax, ax	; Zero out AX
+	mov ss, ax	; Stack segment
+	sti		; Enable interrupts
+
 	mov si, welcome_msg	; Move address of welcome_msg into SI
 	call puts		; Call the puts function
 	jmp $			; Infinite loop
