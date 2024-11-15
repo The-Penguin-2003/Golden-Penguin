@@ -5,6 +5,10 @@
 
 ;; Bootloader Entry Point
 _start:
+	mov ah, 0x00	; BIOS set video mode function (int 0x10)
+	mov al, 0x03	; 80x25 16-color text
+	int 0x10	; BIOS video interrupt
+
 	cli		; Disable interrupts
 	mov ax, 0x7C0	; Set AX to address of boot code
 	mov ds, ax	; Data segment
@@ -16,6 +20,15 @@ _start:
 
 	mov si, welcome_msg	; Move address of welcome_msg into SI
 	call puts		; Call the puts function
+
+	mov si, keywait_msg	; Move address of keywait_msg into SI
+	call puts		; Print
+
+	call keywait		; Wait for a key
+
+	mov si, load_msg	; Move address of load_msg into SI
+	call puts		; Print
+
 	jmp $			; Infinite loop
 
 ;; Functions
@@ -37,9 +50,29 @@ putc:
 	int 0x10	; BIOS video interrupt
 	ret		; Return
 
+keywait:
+	mov al, 0xD2	; Load keyboard command 0xD2 into AL
+	out 0x64, al	; Send command to keyboard command port
+
+	mov al, 0x80	; Load key release scancode into AL
+	out 0x60, al	; Write byte to keyboard data port
+
+	.keyup:
+		in al, 0x60		; Read byte from keyboard output buffer
+		and al, 0b10000000	; If bit 7 is set, a key release happened
+		jnz .keyup		; Continue looping if bit 7 is not set
+
+	.keydn:
+		in al, 0x60	; Read scancode from output buffer
+		ret		; Return
+
 ;; Data
 welcome_msg:
-	db "Golden Penguin",0
+	db "Welcome to the Golden Penguin bootloader!",0xA,0xD,0
+keywait_msg:
+	db "Press any key to load kernel...",0xA,0xD,0
+load_msg:
+	db "Attempting to load kernel...",0
 
 ;; Magic
 times 510-($-$$) db 0	; Pad out 0s until 510th byte
