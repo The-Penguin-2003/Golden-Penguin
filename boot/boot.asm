@@ -29,7 +29,28 @@ _start:
 	mov si, load_msg	; Move address of load_msg into SI
 	call puts		; Print
 
-	jmp $			; Infinite loop
+	xor ax, ax		; Zero out AX
+	xor ah, ah		; BIOS reset disk function (int 0x13)
+	xor dl, dl		; Drive number (0=floppy)
+	int 0x13		; BIOS disk interrupt
+
+	jc disk_reset_failed	; If carry bit is set, the reset operation failed
+
+	mov ax, BASE		; Set AX to BASE (0x100)
+	mov es, ax		; Set extra segment to BASE
+	xor bx, bx		; Zero out BX
+
+	mov ah, 0x02		; BIOS read sectors function (int 0x13)
+	mov al, SECTORS		; Number of sectors to read
+	xor ch, ch		; Cylinder
+	mov cl, 2		; Sector
+	xor dh, dh		; Head
+	mov dl, [boot_dev]	; Drive
+	int 0x13		; BIOS disk interrupt
+
+	jc disk_read_failed	; If carry bit is set, the read operation failed
+
+	jmp dword BASE:0x0	; Far jump to second-stage bootloader
 
 ;; Functions
 puts:
@@ -66,13 +87,40 @@ keywait:
 		in al, 0x60	; Read scancode from output buffer
 		ret		; Return
 
+disk_reset_failed:
+	mov si, reset_err_msg	; Load address of reset_err_msg into SI
+	call puts		; Print
+	jmp err			; Jump to error function
+
+disk_read_failed:
+	mov si, read_err_msg	; Load address of read_err_msg into SI
+	call puts		; Print
+	jmp err			; Jump to error function
+
+err:
+	mov si, load_err_msg	; Load address of load_err_msg into SI
+	call puts		; Print
+	jmp $			; Halt system
+
 ;; Data
 welcome_msg:
-	db "Welcome to the Golden Penguin bootloader!",0xA,0xD,0
+	db "Welcome to the Golden Penguin first-stage bootloader!",0xA,0xD,0
 keywait_msg:
-	db "Press any key to load kernel...",0xA,0xD,0
+	db "Press any key to enter second stage...",0xA,0xD,0
 load_msg:
-	db "Attempting to load kernel...",0
+	db "Attempting to enter second stage...",0xA,0xD,0
+reset_err_msg:
+	db "ERROR: Failed To Reset Disk!",0xA,0xD,0
+read_err_msg:
+	db "ERROR: Failed To Read Disk!",0xA,0xD,0
+load_err_msg:
+	db "ERROR: Failed To Enter Second-Stage Bootloader!",0xA,0xD,0
+boot_dev:
+	db 0
+
+;; Constants
+BASE equ 0x100
+SECTORS equ 0x20
 
 ;; Magic
 times 510-($-$$) db 0	; Pad out 0s until 510th byte
